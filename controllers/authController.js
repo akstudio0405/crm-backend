@@ -17,8 +17,9 @@ class AuthController {
             }
 
             const [users] = await db.query(
-                `SELECT u.*, r.name as role_name FROM users u 
-                 JOIN roles r ON u.role_id = r.id 
+                `SELECT u.*, r.name as role_name 
+                 FROM users u
+                 JOIN roles r ON u.role_id = r.id
                  WHERE u.email = ? AND u.is_active = TRUE`,
                 [email]
             );
@@ -41,7 +42,10 @@ class AuthController {
             }
 
             // Update last login
-            await db.query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
+            await db.query(
+                'UPDATE users SET last_login = NOW() WHERE id = ?',
+                [user.id]
+            );
 
             // Generate token
             const token = jwt.sign(
@@ -52,10 +56,12 @@ class AuthController {
                     role_name: user.role_name
                 },
                 config.JWT_SECRET,
-                { expiresIn: config.JWT_EXPIRES_IN }
+                {
+                    expiresIn: config.JWT_EXPIRES_IN || '7d'
+                }
             );
 
-            res.json({
+            return res.status(200).json({
                 success: true,
                 message: 'Login successful',
                 data: {
@@ -65,15 +71,18 @@ class AuthController {
                         email: user.email,
                         first_name: user.first_name,
                         last_name: user.last_name,
+                        phone: user.phone,
                         role_id: user.role_id,
                         role_name: user.role_name,
-                        avatar: user.avatar
+                        avatar: user.avatar,
+                        is_active: user.is_active,
+                        last_login: user.last_login
                     }
                 }
             });
         } catch (error) {
             console.error('Login error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
                 message: 'Login failed'
             });
@@ -92,8 +101,12 @@ class AuthController {
                 });
             }
 
-            // Check if user exists
-            const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]);
+            // Check if user already exists
+            const [existing] = await db.query(
+                'SELECT id FROM users WHERE email = ?',
+                [email]
+            );
+
             if (existing.length > 0) {
                 return res.status(400).json({
                     success: false,
@@ -104,25 +117,37 @@ class AuthController {
             // Hash password
             const hashedPassword = await bcrypt.hash(password, 10);
 
-            // Get default role (Sales Agent = 3)
-            const [roles] = await db.query("SELECT id FROM roles WHERE name = 'Sales Agent'");
+            // Get default role (Sales Agent)
+            const [roles] = await db.query(
+                "SELECT id FROM roles WHERE name = 'Sales Agent' LIMIT 1"
+            );
+
             const role_id = roles.length > 0 ? roles[0].id : 3;
 
             // Create user
             const [result] = await db.query(
-                `INSERT INTO users (email, password, first_name, last_name, phone, role_id) 
+                `INSERT INTO users (email, password, first_name, last_name, phone, role_id)
                  VALUES (?, ?, ?, ?, ?, ?)`,
-                [email, hashedPassword, first_name, last_name || '', phone || '', role_id]
+                [
+                    email,
+                    hashedPassword,
+                    first_name,
+                    last_name || '',
+                    phone || '',
+                    role_id
+                ]
             );
 
-            res.status(201).json({
+            return res.status(201).json({
                 success: true,
                 message: 'User registered successfully',
-                data: { id: result.insertId }
+                data: {
+                    id: result.insertId
+                }
             });
         } catch (error) {
             console.error('Register error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
                 message: 'Registration failed'
             });
@@ -133,11 +158,20 @@ class AuthController {
     async me(req, res) {
         try {
             const [users] = await db.query(
-                `SELECT u.id, u.email, u.first_name, u.last_name, u.phone, u.avatar, 
-                        u.role_id, u.is_active, u.last_login, u.created_at,
-                        r.name as role_name 
-                 FROM users u 
-                 JOIN roles r ON u.role_id = r.id 
+                `SELECT 
+                    u.id,
+                    u.email,
+                    u.first_name,
+                    u.last_name,
+                    u.phone,
+                    u.avatar,
+                    u.role_id,
+                    u.is_active,
+                    u.last_login,
+                    u.created_at,
+                    r.name as role_name
+                 FROM users u
+                 JOIN roles r ON u.role_id = r.id
                  WHERE u.id = ?`,
                 [req.user.id]
             );
@@ -149,13 +183,13 @@ class AuthController {
                 });
             }
 
-            res.json({
+            return res.status(200).json({
                 success: true,
                 data: users[0]
             });
         } catch (error) {
             console.error('Get user error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 success: false,
                 message: 'Failed to get user info'
             });
