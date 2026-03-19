@@ -16,9 +16,51 @@ const authMiddleware = async (req, res, next) => {
 
         const token = authHeader.split(' ')[1];
 
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid token format'
+            });
+        }
+
         try {
             const decoded = jwt.verify(token, config.JWT_SECRET);
-            req.user = decoded;
+            console.log('JWT DECODED:', decoded);
+
+            const userId = decoded.id || decoded.userId || decoded.user_id;
+
+            if (!userId) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Invalid token payload'
+                });
+            }
+
+            const [users] = await db.query(
+                `SELECT 
+                    u.id,
+                    u.first_name,
+                    u.last_name,
+                    u.email,
+                    u.role_id,
+                    r.name AS role_name
+                 FROM users u
+                 LEFT JOIN roles r ON u.role_id = r.id
+                 WHERE u.id = ?
+                 LIMIT 1`,
+                [userId]
+            );
+
+            if (users.length === 0) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
+
+            req.user = users[0];
+            console.log('REQ.USER SET:', req.user);
+
             next();
         } catch (err) {
             console.error('JWT verify error:', err.message);
@@ -39,7 +81,12 @@ const authMiddleware = async (req, res, next) => {
 const checkPermission = (permissionName) => {
     return async (req, res, next) => {
         try {
-            const db = require('../config/database');
+            if (!req.user || !req.user.role_id) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Unauthorized user context'
+                });
+            }
 
             const [permissions] = await db.query(
                 `SELECT p.name
