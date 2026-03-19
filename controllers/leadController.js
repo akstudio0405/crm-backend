@@ -37,7 +37,6 @@ class LeadController {
 
             const params = [];
 
-            // Role-based filtering
             if (req.user && req.user.role_name !== 'Admin') {
                 query += ' AND (l.assigned_to = ? OR l.created_by = ?)';
                 params.push(req.user.id, req.user.id);
@@ -121,7 +120,6 @@ class LeadController {
 
             const params = [id];
 
-            // Role-based access
             if (req.user && req.user.role_name !== 'Admin') {
                 query += ' AND (l.assigned_to = ? OR l.created_by = ?)';
                 params.push(req.user.id, req.user.id);
@@ -189,14 +187,36 @@ class LeadController {
                 notes
             } = req.body;
 
-            if (!first_name || !first_name.trim()) {
+            console.log('CREATE LEAD BODY:', req.body);
+
+            const cleanSourceId =
+                source_id === '' || source_id === undefined || source_id === null
+                    ? null
+                    : Number(source_id);
+
+            const cleanStageId =
+                stage_id === '' || stage_id === undefined || stage_id === null
+                    ? null
+                    : Number(stage_id);
+
+            const cleanAssignedTo =
+                assigned_to === '' || assigned_to === undefined || assigned_to === null
+                    ? req.user.id
+                    : Number(assigned_to);
+
+            const cleanEstimatedValue =
+                estimated_value === '' || estimated_value === undefined || estimated_value === null
+                    ? null
+                    : Number(estimated_value);
+
+            if (!first_name || !String(first_name).trim()) {
                 return res.status(400).json({
                     success: false,
                     message: 'First name is required'
                 });
             }
 
-            let finalStageId = stage_id;
+            let finalStageId = cleanStageId;
 
             if (!finalStageId) {
                 const [stages] = await db.query(
@@ -205,7 +225,7 @@ class LeadController {
                 finalStageId = stages.length > 0 ? stages[0].id : 1;
             }
 
-            const assignedUserId = assigned_to || req.user.id;
+            const assignedUserId = cleanAssignedTo;
 
             const [result] = await db.query(
                 `INSERT INTO leads (
@@ -223,17 +243,17 @@ class LeadController {
                     created_by
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
-                    first_name.trim(),
-                    last_name || '',
-                    email || '',
-                    phone || '',
-                    company || '',
-                    source_id || null,
+                    String(first_name).trim(),
+                    last_name ? String(last_name).trim() : '',
+                    email ? String(email).trim() : '',
+                    phone ? String(phone).trim() : '',
+                    company ? String(company).trim() : '',
+                    cleanSourceId,
                     finalStageId,
                     null,
                     assignedUserId,
-                    estimated_value || null,
-                    notes || '',
+                    cleanEstimatedValue,
+                    notes ? String(notes).trim() : '',
                     req.user.id
                 ]
             );
@@ -249,7 +269,12 @@ class LeadController {
                 ['lead_created', 'Lead created', 'lead', result.insertId, req.user.id]
             );
 
-            if (assigned_to && Number(assigned_to) !== Number(req.user.id)) {
+            if (
+                assigned_to !== undefined &&
+                assigned_to !== null &&
+                assigned_to !== '' &&
+                Number(assigned_to) !== Number(req.user.id)
+            ) {
                 await db.query(
                     `INSERT INTO notifications (
                         user_id,
@@ -259,9 +284,9 @@ class LeadController {
                         link
                     ) VALUES (?, ?, ?, ?, ?)`,
                     [
-                        assigned_to,
+                        Number(assigned_to),
                         'New Lead Assigned',
-                        `You have been assigned a new lead: ${first_name.trim()}`,
+                        `You have been assigned a new lead: ${String(first_name).trim()}`,
                         'info',
                         `/leads/${result.insertId}`
                     ]
@@ -277,7 +302,7 @@ class LeadController {
             console.error('Create lead error:', error);
             res.status(500).json({
                 success: false,
-                message: 'Failed to create lead'
+                message: error.message || 'Failed to create lead'
             });
         }
     }
