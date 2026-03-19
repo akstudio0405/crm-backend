@@ -236,12 +236,11 @@ class LeadController {
                     company,
                     source_id,
                     stage_id,
-                    pipeline_id,
                     assigned_to,
                     estimated_value,
                     notes,
                     created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
                     String(first_name).trim(),
                     last_name ? String(last_name).trim() : '',
@@ -250,7 +249,6 @@ class LeadController {
                     company ? String(company).trim() : '',
                     cleanSourceId,
                     finalStageId,
-                    null,
                     assignedUserId,
                     cleanEstimatedValue,
                     notes ? String(notes).trim() : '',
