@@ -220,7 +220,7 @@ class LeadController {
 
             if (!finalStageId) {
                 const [stages] = await db.query(
-                    'SELECT id FROM lead_stages WHERE is_default = TRUE LIMIT 1'
+                    'SELECT id FROM lead_stages ORDER BY stage_order ASC, id ASC LIMIT 1'
                 );
                 finalStageId = stages.length > 0 ? stages[0].id : 1;
             }
